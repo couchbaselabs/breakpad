@@ -64,6 +64,8 @@ class AddressMap {
   // initially created.
   void Clear();
 
+  bool Equals(const AddressMap<AddressType, EntryType> &other) const;
+
  private:
   // Convenience types.
   typedef std::map<AddressType, EntryType> AddressToEntryMap;
@@ -72,6 +74,8 @@ class AddressMap {
 
   // Maps the address of each entry to an EntryType.
   AddressToEntryMap map_;
+
+  friend class ModuleSerializer;
 };
 
 }  // namespace google_breakpad

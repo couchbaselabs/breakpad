@@ -33,7 +33,9 @@
 #include <map>
 #include <utility>
 #include <vector>
+#include <sstream>
 
+#include "processor/equals.h"
 #include "processor/address_map-inl.h"
 #include "processor/contained_range_map-inl.h"
 #include "processor/range_map-inl.h"
@@ -61,10 +63,17 @@ struct BasicSourceLineResolver::Line {
       , source_file_id(file_id)
       , line(source_line) { }
 
+  bool operator==(const Line &other) const {
+    return address == other.address &&
+      size == other.size &&
+      source_file_id == other.source_file_id &&
+      line == other.line;
+  }
+
   MemAddr address;
   MemAddr size;
-  int source_file_id;
-  int line;
+  u_int32_t source_file_id;
+  u_int32_t line;
 };
 
 struct BasicSourceLineResolver::Function {
@@ -80,10 +89,20 @@ struct BasicSourceLineResolver::Function {
   MemAddr size;
 
   // The size of parameters passed to this function on the stack.
-  int parameter_size;
+  u_int32_t parameter_size;
 
   RangeMap< MemAddr, linked_ptr<Line> > lines;
 };
+
+// doesn't really belong here, but I can't put it anywhere else...
+inline bool Equals(const BasicSourceLineResolver::Function &a,
+                   const BasicSourceLineResolver::Function &b)
+{
+  return a.name == b.name &&
+    a.address == b.address &&
+    a.size == b.size &&
+    Equals(a.lines, b.lines);
+}
 
 struct BasicSourceLineResolver::PublicSymbol {
   PublicSymbol(const string& set_name,
@@ -93,13 +112,19 @@ struct BasicSourceLineResolver::PublicSymbol {
         address(set_address),
         parameter_size(set_parameter_size) {}
 
+  bool operator==(const PublicSymbol &other) const {
+    return name == other.name &&
+      address == other.address &&
+      parameter_size == other.parameter_size;
+  }
+
   string name;
   MemAddr address;
 
   // If the public symbol is used as a function entry point, parameter_size
-  // is set to the size of the parameters passed to the funciton on the
+  // is set to the size of the parameters passed to the function on the
   // stack, if known.
-  int parameter_size;
+  u_int32_t parameter_size;
 };
 
 class BasicSourceLineResolver::Module {
@@ -116,12 +141,15 @@ class BasicSourceLineResolver::Module {
   // any returned StackFrameInfo object.
   StackFrameInfo* LookupAddress(StackFrame *frame) const;
 
+  bool Equals(const Module &other) const;
+
  private:
   friend class BasicSourceLineResolver;
+
 #ifdef BSLR_NO_HASH_MAP
-  typedef map<int, string> FileMap;
+  typedef map<u_int32_t, string> FileMap;
 #else  // BSLR_NO_HASH_MAP
-  typedef hash_map<int, string> FileMap;
+  typedef hash_map<u_int32_t, string> FileMap;
 #endif  // BSLR_NO_HASH_MAP
 
   // The types for stack_info_.  This is equivalent to MS DIA's
@@ -177,9 +205,391 @@ class BasicSourceLineResolver::Module {
   // as certain types.
   ContainedRangeMap< MemAddr, linked_ptr<StackFrameInfo> >
       stack_info_[STACK_INFO_LAST];
+
+  friend class ModuleSerializer;
 };
 
-BasicSourceLineResolver::BasicSourceLineResolver() : modules_(new ModuleMap) {
+
+class ModuleSerializer {
+ public:
+  ModuleSerializer(std::istream *stream) : instream_(stream),
+                                           outstream_(NULL) {}
+  ModuleSerializer(std::ostream *stream) : instream_(NULL),
+                                           outstream_(stream) {}
+  
+  bool Serialize(const BasicSourceLineResolver::Module &module) {
+    if (!outstream_)
+      return false;
+
+    outstream_->seekp(0, std::ios_base::beg);
+    Write(SERIALIZE_FORMAT);
+    Write(module.files_);
+    Write(module.functions_);
+    Write(module.public_symbols_);
+    for (int i = BasicSourceLineResolver::Module::STACK_INFO_FPO;
+         i < BasicSourceLineResolver::Module::STACK_INFO_LAST; i++)
+      Write(module.stack_info_[i]);
+    return true;
+  }
+
+  bool Deserialize(BasicSourceLineResolver::Module &module) {
+    if (!instream_)
+      return false;
+
+    instream_->seekg(0, std::ios_base::beg);
+    u_int32_t format;
+    Read(format);
+    if (format != SERIALIZE_FORMAT)
+      return false;
+
+    Read(module.files_);
+    Read(module.functions_);
+    Read(module.public_symbols_);
+    for (int i = BasicSourceLineResolver::Module::STACK_INFO_FPO;
+         i < BasicSourceLineResolver::Module::STACK_INFO_LAST; i++)
+      Read(module.stack_info_[i]);
+
+    return true;
+  }
+
+ private:
+  // Increment this if changing the serializing format
+  static const u_int32_t SERIALIZE_FORMAT = 1;
+
+  void Write(const u_int32_t data) {
+    outstream_->write(reinterpret_cast<const char*>(&data), sizeof(u_int32_t));
+  }
+
+  void Write(const u_int64_t data) {
+    outstream_->write(reinterpret_cast<const char*>(&data), sizeof(u_int64_t));
+  }
+
+  void Read(u_int32_t &data) {
+    instream_->read(reinterpret_cast<char*>(&data), sizeof(u_int32_t));
+  }
+
+  void Read(u_int64_t &data) {
+    instream_->read(reinterpret_cast<char*>(&data), sizeof(u_int64_t));
+  }
+
+  // Serialize strings as a length + character array (not null terminated)
+  // pad out to sizeof(int)
+  void Write(const string &data) {
+    if (data.empty()) {
+      Write((u_int32_t)0);
+      return;
+    }
+
+    u_int32_t extra = sizeof(u_int32_t) - (data.size() % sizeof(u_int32_t));
+    Write((u_int32_t)data.size() + extra);
+    outstream_->write(data.c_str(), data.size());
+    char c = '\0';
+    for (int i=0; i<extra; i++)
+      outstream_->write(&c, 1);
+  }
+
+  void Read(string &data) {
+    u_int32_t length;
+    Read(length);
+
+    if (length > 0) {
+      vector<char> string_bytes(length);
+      instream_->read(&string_bytes[0], length);
+      data = &string_bytes[0];
+    }
+  }
+
+  template<typename k, typename d>
+  void Write(const map<k, d> &data) {
+    Write((u_int32_t)data.size());
+    for (typename map<k,d>::const_iterator it = data.begin();
+         it != data.end(); it++) {
+      Write(it->first);
+      Write(it->second);
+    }
+  }
+
+  template<typename k, typename v>
+  void Read(map<k, v> &data) {
+    u_int32_t length;
+    Read(length);
+    if (length == 0)
+      return;
+
+    for (int i=0; i<length; i++) {
+      k key;
+      v value;
+      Read(key);
+      Read(value);
+      data.insert(make_pair(key, value));
+    }
+  }
+
+#ifndef BSLR_NO_HASH_MAP
+  template<typename k, typename d>
+  void Write(const hash_map<k, d> &data) {
+    Write((u_int32_t)data.size());
+    for (typename hash_map<k,d>::const_iterator it = data.begin();
+         it != data.end(); it++) {
+      Write(it->first);
+      Write(it->second);
+    }
+  }
+
+  template<typename k, typename v>
+  void Read(hash_map<k, v> &data) {
+    u_int32_t length;
+    Read(length);
+    if (length == 0)
+      return;
+
+    data.resize(length);
+
+    for (int i=0; i<length; i++) {
+      k key;
+      v value;
+      Read(key);
+      Read(value);
+      data.insert(make_pair(key, value));
+    }
+  }
+#endif
+  
+  template<typename AddressType, typename EntryType>
+  void Write(const RangeMap<AddressType, EntryType> &data) {
+    Write((u_int32_t)data.map_.size());
+    for (typename RangeMap<AddressType, EntryType>::MapConstIterator it =
+           data.map_.begin(); it != data.map_.end(); it++) {
+      Write(it->first);
+      Write<AddressType, EntryType>(it->second);
+    }
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Read(RangeMap<AddressType, EntryType> &data) {
+    // Can't instantiate Range(), so manually read in the
+    // AddressMap here.
+    u_int32_t length;
+    Read(length);
+    if (length == 0)
+      return;
+
+    for (int i=0; i<length; i++) {
+      AddressType address, range_address;
+      EntryType entry;
+      // map key
+      Read(address);
+      // Range values
+      Read(range_address);
+      Read(entry);
+      data.map_.insert(make_pair(address,
+                                 typename RangeMap<AddressType, EntryType>::Range(range_address, entry)));
+    }
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Write(const typename RangeMap<AddressType, EntryType>::Range &data) {
+    Write(data.base_);
+    Write(data.entry_);
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Write(const AddressMap<AddressType, EntryType> &data) {
+    Write(data.map_);
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Read(AddressMap<AddressType, EntryType> &data) {
+    Read(data.map_);
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Write(const ContainedRangeMap<AddressType, EntryType> &data) {
+    Write(data.base_);
+    Write(data.entry_);
+    if (data.map_) {
+      // write this as a marker
+      Write((u_int32_t)1);
+      Write(*data.map_);
+    }
+    else {
+      Write((u_int32_t)0);
+    }
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Read(ContainedRangeMap<AddressType, EntryType> &data) {
+    // sort of evil, but that's ok
+    AddressType *base_ptr = const_cast<AddressType*>(&data.base_);
+    Read(*base_ptr);
+    EntryType *entry_ptr = const_cast<EntryType*>(&data.entry_);
+    Read(*entry_ptr);
+
+    u_int32_t marker;
+    Read(marker);
+    if (marker == 1) {
+      data.map_ = new typename ContainedRangeMap<AddressType, EntryType>::AddressToRangeMap();
+      Read(*data.map_);
+    }
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Write(const ContainedRangeMap<AddressType, EntryType> * const &data) {
+    if (data) {
+      // write this as a marker
+      Write((u_int32_t)1);
+      Write<AddressType, EntryType>(*data);
+    }
+    else {
+      Write((u_int32_t)0);
+    }
+  }
+
+  template<typename AddressType, typename EntryType>
+  void Read(ContainedRangeMap<AddressType, EntryType> *&data) {
+    u_int32_t marker;
+    Read(marker);
+    if (marker == 1) {
+      data = new ContainedRangeMap<AddressType, EntryType>();
+      Read<AddressType, EntryType>(*data);
+    }
+    else {
+      data = NULL;
+    }
+  }
+
+  void Write(const BasicSourceLineResolver::Function &data) {
+    Write(data.name);
+    Write(data.address);
+    Write(data.size);
+    Write(data.parameter_size);
+    Write(data.lines);
+  }
+
+  // Read this as a pointer because there's no zero-argument
+  // constructor.
+  void Read(BasicSourceLineResolver::Function *&data) {
+    string name;
+    SourceLineResolverInterface::MemAddr address;
+    SourceLineResolverInterface::MemAddr size;
+    u_int32_t parameter_size;
+
+    Read(name);
+    Read(address);
+    Read(size);
+    Read(parameter_size);
+    data = new BasicSourceLineResolver::Function(name, address, size,
+                                                 parameter_size);
+    Read(data->lines);
+  }
+
+  void Write(const BasicSourceLineResolver::PublicSymbol &data) {
+    Write(data.name);
+    Write(data.address);
+    Write(data.parameter_size);
+  }
+
+  // Read this as a pointer because there's no zero-argument
+  // constructor.
+  void Read(BasicSourceLineResolver::PublicSymbol *&data) {
+    string name;
+    SourceLineResolverInterface::MemAddr address;
+    u_int32_t parameter_size;
+    Read(name);
+    Read(address);
+    Read(parameter_size);
+    data = new BasicSourceLineResolver::PublicSymbol(name, address,
+                                                     parameter_size);
+  }
+
+  void Write(const BasicSourceLineResolver::Line &data) {
+    Write(data.address);
+    Write(data.size);
+    Write(data.source_file_id);
+    Write(data.line);
+  }
+
+  // Read this as a pointer because there's no zero-argument
+  // constructor.
+  void Read(BasicSourceLineResolver::Line *&data) {
+    SourceLineResolverInterface::MemAddr address;
+    SourceLineResolverInterface::MemAddr size;
+    u_int32_t source_file_id;
+    u_int32_t line;
+
+    Read(address);
+    Read(size);
+    Read(source_file_id);
+    Read(line);
+
+    data = new BasicSourceLineResolver::Line(address, size, source_file_id,
+                                             line);
+  }
+
+  void Write(const StackFrameInfo &data) {
+    Write(data.valid);
+    Write(data.prolog_size);
+    Write(data.epilog_size);
+    Write(data.parameter_size);
+    Write(data.saved_register_size);
+    Write(data.local_size);
+    Write(data.max_stack_size);
+    Write((u_int32_t)data.allocates_base_pointer);
+    Write(data.program_string);
+  }
+
+  // Just for consistency with the above methods.
+  void Read(StackFrameInfo *&data) {
+    data = new StackFrameInfo();
+    Read(data->valid);
+    Read(data->prolog_size);
+    Read(data->epilog_size);
+    Read(data->parameter_size);
+    Read(data->saved_register_size);
+    Read(data->local_size);
+    Read(data->max_stack_size);
+    u_int32_t allocates_base_pointer;
+    Read(allocates_base_pointer);
+    data->allocates_base_pointer = (allocates_base_pointer != 0);
+    Read(data->program_string);
+  }
+
+  template<typename T>
+  void Write(const linked_ptr<T> &data) {
+    if (data.get()) {
+      // write this as a marker
+      Write((u_int32_t)1);
+      Write(*data);
+    }
+    else {
+      Write((u_int32_t)0);
+    }
+  }
+
+  template<typename T>
+  void Read(linked_ptr<T> &data) {
+    u_int32_t marker;
+    Read(marker);
+    if (marker == 1) {
+      T *thing;
+      // Read will allocate the pointer
+      Read(thing);
+      data.reset(thing);
+    }
+  }
+
+  std::istream *instream_;
+  std::ostream *outstream_;
+};
+
+BasicSourceLineResolver::BasicSourceLineResolver() :
+  modules_(new ModuleMap),
+  module_cache_(NULL) {
+}
+
+BasicSourceLineResolver::BasicSourceLineResolver(SourceLineResolverModuleCacheInterface *module_cache) :
+  modules_(new ModuleMap),
+  module_cache_(module_cache) {
 }
 
 BasicSourceLineResolver::~BasicSourceLineResolver() {
@@ -202,9 +612,32 @@ bool BasicSourceLineResolver::LoadModule(const string &module_name,
                  map_file;
 
   Module *module = new Module(module_name);
-  if (!module->LoadMap(map_file)) {
-    delete module;
-    return false;
+  
+  // First see if we have a cache, and if so,
+  // if the cache contains this module
+  istream *instream;
+  if (module_cache_ &&
+      module_cache_->GetModuleData(map_file, &instream)) {
+    ModuleSerializer serializer(instream);
+    serializer.Deserialize(*module);
+    delete instream;
+  }
+  else {
+    // Otherwise load from file
+    if (!module->LoadMap(map_file)) {
+      delete module;
+      return false;
+    }
+
+    // If we have a cache, then store the result
+    ostream *outstream;
+    if (module_cache_ &&
+        module_cache_->BeginSetModuleData(map_file, &outstream)) {
+      ModuleSerializer serializer(outstream);
+      serializer.Serialize(*module);
+      module_cache_->EndSetModuleData(map_file, &outstream);
+      delete outstream;
+    }
   }
 
   modules_->insert(make_pair(module_name, module));
@@ -400,6 +833,23 @@ StackFrameInfo* BasicSourceLineResolver::Module::LookupAddress(
   }
 
   return frame_info.release();
+}
+
+bool BasicSourceLineResolver::Module::Equals(const Module &other) const {
+  return
+    google_breakpad::Equals(files_, other.files_) &&
+    google_breakpad::Equals(functions_, other.functions_) &&
+    google_breakpad::Equals(public_symbols_, other.public_symbols_) &&
+    google_breakpad::Equals(stack_info_[STACK_INFO_FPO],
+                            other.stack_info_[STACK_INFO_FPO]) &&
+    google_breakpad::Equals(stack_info_[STACK_INFO_TRAP],
+                            other.stack_info_[STACK_INFO_TRAP]) &&
+    google_breakpad::Equals(stack_info_[STACK_INFO_TSS],
+                            other.stack_info_[STACK_INFO_TSS]) &&
+    google_breakpad::Equals(stack_info_[STACK_INFO_STANDARD],
+           other.stack_info_[STACK_INFO_STANDARD]) &&
+    google_breakpad::Equals(stack_info_[STACK_INFO_FRAME_DATA],
+           other.stack_info_[STACK_INFO_FRAME_DATA]);
 }
 
 // static
@@ -610,5 +1060,45 @@ size_t BasicSourceLineResolver::HashString::operator()(const string &s) const {
   return hash<const char*>()(s.c_str());
 }
 #endif  // BSLR_NO_HASH_MAP
+
+// static
+bool BasicSourceLineResolver::ModuleRoundTripTest(const string &map_file) {
+  Module *module = new Module("test");
+  if (!module->LoadMap(map_file)) {
+    BPLOG(ERROR) << "Failed to load map file!";
+    return false;
+  }
+
+  if (!module->Equals(*module)) { // sanity check
+    BPLOG(ERROR) << "Failed sanity check!";
+    return false;
+  }
+
+  std::stringstream memory_stream(std::ios::in | std::ios::out |
+                                  std::ios::binary);
+  memory_stream.exceptions(std::ios::eofbit | std::ios::failbit |
+                           std::ios::badbit);
+  ModuleSerializer serializer(static_cast<ostream*>(&memory_stream));
+  if (!serializer.Serialize(*module)) {
+    BPLOG(ERROR) << "Failed to serialize Module!";
+    return false;
+  }
+
+  BPLOG(INFO) << "Serialized " << memory_stream.tellp() << " bytes.";
+
+  Module *new_module = new Module("test");
+  ModuleSerializer deserializer(static_cast<istream*>(&memory_stream));
+  if (!deserializer.Deserialize(*new_module)) {
+    BPLOG(ERROR) << "Failed to deserialize Module!";
+    return false;
+  }
+
+  if (!module->Equals(*new_module)) {
+    BPLOG(ERROR) << "Deserialized module not equivalent to original!";
+    return false;
+  }
+  BPLOG(INFO) << "Round trip successful!";
+  return true;
+}
 
 }  // namespace google_breakpad

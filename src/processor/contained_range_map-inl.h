@@ -40,6 +40,7 @@
 #include <cassert>
 
 #include "processor/contained_range_map.h"
+#include "processor/equals.h"
 #include "processor/logging.h"
 
 
@@ -185,6 +186,23 @@ void ContainedRangeMap<AddressType, EntryType>::Clear() {
   }
 }
 
+template<typename AddressType, typename EntryType>
+bool ContainedRangeMap<AddressType, EntryType>::Equals(
+  const ContainedRangeMap<AddressType, EntryType> &other) const
+{
+  bool equal;
+  if (map_ && other.map_) {
+    equal = google_breakpad::Equals(*map_, *other.map_);
+  }
+  else {
+    // otherwise if they're both NULL they're equal
+    equal = map_ == other.map_;
+  }
+
+  return equal &&
+    google_breakpad::Equals(base_, other.base_) &&
+    google_breakpad::Equals(entry_, other.entry_);
+}
 
 }  // namespace google_breakpad
 

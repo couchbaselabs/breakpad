@@ -72,7 +72,9 @@ check_PROGRAMS = src/processor/address_map_unittest$(EXEEXT) \
 	src/processor/minidump_processor_unittest$(EXEEXT) \
 	src/processor/pathname_stripper_unittest$(EXEEXT) \
 	src/processor/postfix_evaluator_unittest$(EXEEXT) \
-	src/processor/range_map_unittest$(EXEEXT) $(am__EXEEXT_1)
+	src/processor/range_map_unittest$(EXEEXT) \
+	src/processor/module_serialize_unittest$(EXEEXT) \
+	$(am__EXEEXT_1)
 @SELFTEST_TRUE@am__append_1 = \
 @SELFTEST_TRUE@	src/processor/stackwalker_selftest
 
@@ -107,8 +109,9 @@ src_libbreakpad_la_LIBADD =
 am__dirstamp = $(am__leading_dot)dirstamp
 am_src_libbreakpad_la_OBJECTS = src/processor/basic_code_modules.lo \
 	src/processor/basic_source_line_resolver.lo \
-	src/processor/call_stack.lo src/processor/logging.lo \
-	src/processor/minidump.lo src/processor/minidump_processor.lo \
+	src/processor/call_stack.lo src/processor/disk_module_cache.lo \
+	src/processor/logging.lo src/processor/minidump.lo \
+	src/processor/minidump_processor.lo \
 	src/processor/pathname_stripper.lo \
 	src/processor/process_state.lo \
 	src/processor/simple_symbol_supplier.lo \
@@ -169,8 +172,9 @@ src_processor_minidump_stackwalk_OBJECTS =  \
 src_processor_minidump_stackwalk_DEPENDENCIES =  \
 	src/processor/basic_code_modules.lo \
 	src/processor/basic_source_line_resolver.lo \
-	src/processor/call_stack.lo src/processor/logging.lo \
-	src/processor/minidump.lo src/processor/minidump_processor.lo \
+	src/processor/call_stack.lo src/processor/disk_module_cache.lo \
+	src/processor/logging.lo src/processor/minidump.lo \
+	src/processor/minidump_processor.lo \
 	src/processor/pathname_stripper.lo \
 	src/processor/process_state.lo \
 	src/processor/simple_symbol_supplier.lo \
@@ -179,6 +183,15 @@ src_processor_minidump_stackwalk_DEPENDENCIES =  \
 	src/processor/stackwalker_ppc.lo \
 	src/processor/stackwalker_sparc.lo \
 	src/processor/stackwalker_x86.lo
+am_src_processor_module_serialize_unittest_OBJECTS =  \
+	src/processor/module_serialize_unittest.$(OBJEXT)
+src_processor_module_serialize_unittest_OBJECTS =  \
+	$(am_src_processor_module_serialize_unittest_OBJECTS)
+src_processor_module_serialize_unittest_DEPENDENCIES =  \
+	src/processor/basic_code_modules.lo \
+	src/processor/basic_source_line_resolver.lo \
+	src/processor/call_stack.lo src/processor/logging.lo \
+	src/processor/pathname_stripper.lo
 am_src_processor_pathname_stripper_unittest_OBJECTS =  \
 	src/processor/pathname_stripper_unittest.$(OBJEXT)
 src_processor_pathname_stripper_unittest_OBJECTS =  \
@@ -240,6 +253,7 @@ SOURCES = $(src_libbreakpad_la_SOURCES) \
 	$(src_processor_minidump_dump_SOURCES) \
 	$(src_processor_minidump_processor_unittest_SOURCES) \
 	$(src_processor_minidump_stackwalk_SOURCES) \
+	$(src_processor_module_serialize_unittest_SOURCES) \
 	$(src_processor_pathname_stripper_unittest_SOURCES) \
 	$(src_processor_postfix_evaluator_unittest_SOURCES) \
 	$(src_processor_range_map_unittest_SOURCES) \
@@ -251,6 +265,7 @@ DIST_SOURCES = $(src_libbreakpad_la_SOURCES) \
 	$(src_processor_minidump_dump_SOURCES) \
 	$(src_processor_minidump_processor_unittest_SOURCES) \
 	$(src_processor_minidump_stackwalk_SOURCES) \
+	$(src_processor_module_serialize_unittest_SOURCES) \
 	$(src_processor_pathname_stripper_unittest_SOURCES) \
 	$(src_processor_postfix_evaluator_unittest_SOURCES) \
 	$(src_processor_range_map_unittest_SOURCES) \
@@ -401,6 +416,7 @@ src_libbreakpad_la_SOURCES = \
 	src/google_breakpad/processor/minidump_processor.h \
 	src/google_breakpad/processor/process_state.h \
 	src/google_breakpad/processor/source_line_resolver_interface.h \
+	src/google_breakpad/processor/source_line_resolver_module_cache_interface.h \
 	src/google_breakpad/processor/stack_frame.h \
 	src/google_breakpad/processor/stack_frame_cpu.h \
 	src/google_breakpad/processor/stackwalker.h \
@@ -415,6 +431,8 @@ src_libbreakpad_la_SOURCES = \
 	src/processor/call_stack.cc \
 	src/processor/contained_range_map-inl.h \
 	src/processor/contained_range_map.h \
+	src/processor/disk_module_cache.cc \
+	src/processor/disk_module_cache.h \
 	src/processor/linked_ptr.h \
 	src/processor/logging.h \
 	src/processor/logging.cc \
@@ -508,6 +526,16 @@ src_processor_range_map_unittest_LDADD = \
 	src/processor/logging.lo \
 	src/processor/pathname_stripper.lo
 
+src_processor_module_serialize_unittest_SOURCES = \
+	src/processor/module_serialize_unittest.cc
+
+src_processor_module_serialize_unittest_LDADD = \
+	src/processor/basic_code_modules.lo \
+	src/processor/basic_source_line_resolver.lo \
+	src/processor/call_stack.lo \
+	src/processor/logging.lo \
+	src/processor/pathname_stripper.lo
+
 src_processor_stackwalker_selftest_SOURCES = \
 	src/processor/stackwalker_selftest.cc
 
@@ -541,6 +569,7 @@ src_processor_minidump_stackwalk_LDADD = \
 	src/processor/basic_code_modules.lo \
 	src/processor/basic_source_line_resolver.lo \
 	src/processor/call_stack.lo \
+	src/processor/disk_module_cache.lo \
 	src/processor/logging.lo \
 	src/processor/minidump.lo \
 	src/processor/minidump_processor.lo \
@@ -778,6 +807,8 @@ src/processor/basic_source_line_resolver.lo:  \
 	src/processor/$(DEPDIR)/$(am__dirstamp)
 src/processor/call_stack.lo: src/processor/$(am__dirstamp) \
 	src/processor/$(DEPDIR)/$(am__dirstamp)
+src/processor/disk_module_cache.lo: src/processor/$(am__dirstamp) \
+	src/processor/$(DEPDIR)/$(am__dirstamp)
 src/processor/logging.lo: src/processor/$(am__dirstamp) \
 	src/processor/$(DEPDIR)/$(am__dirstamp)
 src/processor/minidump.lo: src/processor/$(am__dirstamp) \
@@ -883,6 +914,12 @@ src/processor/minidump_stackwalk.$(OBJEXT):  \
 src/processor/minidump_stackwalk$(EXEEXT): $(src_processor_minidump_stackwalk_OBJECTS) $(src_processor_minidump_stackwalk_DEPENDENCIES) src/processor/$(am__dirstamp)
 	@rm -f src/processor/minidump_stackwalk$(EXEEXT)
 	$(CXXLINK) $(src_processor_minidump_stackwalk_OBJECTS) $(src_processor_minidump_stackwalk_LDADD) $(LIBS)
+src/processor/module_serialize_unittest.$(OBJEXT):  \
+	src/processor/$(am__dirstamp) \
+	src/processor/$(DEPDIR)/$(am__dirstamp)
+src/processor/module_serialize_unittest$(EXEEXT): $(src_processor_module_serialize_unittest_OBJECTS) $(src_processor_module_serialize_unittest_DEPENDENCIES) src/processor/$(am__dirstamp)
+	@rm -f src/processor/module_serialize_unittest$(EXEEXT)
+	$(CXXLINK) $(src_processor_module_serialize_unittest_OBJECTS) $(src_processor_module_serialize_unittest_LDADD) $(LIBS)
 src/processor/pathname_stripper_unittest.$(OBJEXT):  \
 	src/processor/$(am__dirstamp) \
 	src/processor/$(DEPDIR)/$(am__dirstamp)
@@ -919,6 +956,8 @@ mostlyclean-compile:
 	-rm -f src/processor/call_stack.$(OBJEXT)
 	-rm -f src/processor/call_stack.lo
 	-rm -f src/processor/contained_range_map_unittest.$(OBJEXT)
+	-rm -f src/processor/disk_module_cache.$(OBJEXT)
+	-rm -f src/processor/disk_module_cache.lo
 	-rm -f src/processor/logging.$(OBJEXT)
 	-rm -f src/processor/logging.lo
 	-rm -f src/processor/minidump.$(OBJEXT)
@@ -928,6 +967,7 @@ mostlyclean-compile:
 	-rm -f src/processor/minidump_processor.lo
 	-rm -f src/processor/minidump_processor_unittest.$(OBJEXT)
 	-rm -f src/processor/minidump_stackwalk.$(OBJEXT)
+	-rm -f src/processor/module_serialize_unittest.$(OBJEXT)
 	-rm -f src/processor/pathname_stripper.$(OBJEXT)
 	-rm -f src/processor/pathname_stripper.lo
 	-rm -f src/processor/pathname_stripper_unittest.$(OBJEXT)
@@ -958,12 +998,14 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/basic_source_line_resolver_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/call_stack.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/contained_range_map_unittest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/disk_module_cache.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/logging.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/minidump.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/minidump_dump.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/minidump_processor.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/minidump_processor_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/minidump_stackwalk.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/module_serialize_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/pathname_stripper.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/pathname_stripper_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@src/processor/$(DEPDIR)/postfix_evaluator_unittest.Po@am__quote@

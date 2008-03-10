@@ -46,6 +46,7 @@
 #endif  // BSLR_NO_HASH_MAP
 
 #include "google_breakpad/processor/source_line_resolver_interface.h"
+#include "google_breakpad/processor/source_line_resolver_module_cache_interface.h"
 
 namespace google_breakpad {
 
@@ -56,9 +57,11 @@ using std::map;
 using __gnu_cxx::hash_map;
 #endif  // BSLR_NO_HASH_MAP
 
+
 class BasicSourceLineResolver : public SourceLineResolverInterface {
  public:
   BasicSourceLineResolver();
+  BasicSourceLineResolver(SourceLineResolverModuleCacheInterface *);
   virtual ~BasicSourceLineResolver();
 
   // SourceLineResolverInterface methods, see source_line_resolver_interface.h
@@ -72,6 +75,8 @@ class BasicSourceLineResolver : public SourceLineResolverInterface {
   virtual bool HasModule(const string &module_name) const;
 
   virtual StackFrameInfo* FillSourceLineInfo(StackFrame *frame) const;
+
+  static bool ModuleRoundTripTest(const string &map_file);
 
  private:
   template<class T> class MemAddrMap;
@@ -97,10 +102,16 @@ class BasicSourceLineResolver : public SourceLineResolverInterface {
   typedef hash_map<string, Module*, HashString> ModuleMap;
 #endif  // BSLR_NO_HASH_MAP
   ModuleMap *modules_;
+  SourceLineResolverModuleCacheInterface *module_cache_;
 
   // Disallow unwanted copy ctor and assignment operator
   BasicSourceLineResolver(const BasicSourceLineResolver&);
   void operator=(const BasicSourceLineResolver&);
+
+  friend bool Equals(const BasicSourceLineResolver::Function &a,
+                     const BasicSourceLineResolver::Function &b);
+
+  friend class ModuleSerializer;
 };
 
 }  // namespace google_breakpad

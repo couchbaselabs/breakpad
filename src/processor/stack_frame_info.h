@@ -100,11 +100,23 @@ struct StackFrameInfo {
     program_string.erase();
   }
 
+  bool operator==(const StackFrameInfo &other) const {
+    return valid == other.valid &&
+      prolog_size == other.prolog_size &&
+      epilog_size == other.epilog_size &&
+      parameter_size == other.parameter_size &&
+      saved_register_size == other.saved_register_size &&
+      local_size == other.local_size &&
+      max_stack_size == other.max_stack_size &&
+      allocates_base_pointer == other.allocates_base_pointer &&
+      program_string == other.program_string;
+  }
+
   // Identifies which fields in the structure are valid.  This is of
   // type Validity, but it is defined as an int because it's not
   // possible to OR values into an enumerated type.  Users must check
   // this field before using any other.
-  int valid;
+  u_int32_t valid;
 
   // These values come from IDiaFrameData.
   u_int32_t prolog_size;

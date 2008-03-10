@@ -62,6 +62,7 @@ src_libbreakpad_la_SOURCES = \
 	src/google_breakpad/processor/minidump_processor.h \
 	src/google_breakpad/processor/process_state.h \
 	src/google_breakpad/processor/source_line_resolver_interface.h \
+	src/google_breakpad/processor/source_line_resolver_module_cache_interface.h \
 	src/google_breakpad/processor/stack_frame.h \
 	src/google_breakpad/processor/stack_frame_cpu.h \
 	src/google_breakpad/processor/stackwalker.h \
@@ -76,6 +77,8 @@ src_libbreakpad_la_SOURCES = \
 	src/processor/call_stack.cc \
 	src/processor/contained_range_map-inl.h \
 	src/processor/contained_range_map.h \
+	src/processor/disk_module_cache.cc \
+	src/processor/disk_module_cache.h \
 	src/processor/linked_ptr.h \
 	src/processor/logging.h \
 	src/processor/logging.cc \
@@ -117,7 +120,8 @@ check_PROGRAMS = \
 	src/processor/minidump_processor_unittest \
 	src/processor/pathname_stripper_unittest \
 	src/processor/postfix_evaluator_unittest \
-	src/processor/range_map_unittest
+	src/processor/range_map_unittest \
+	src/processor/module_serialize_unittest
 
 if SELFTEST
 check_PROGRAMS += \
@@ -185,6 +189,15 @@ src_processor_range_map_unittest_LDADD = \
 	src/processor/logging.lo \
 	src/processor/pathname_stripper.lo
 
+src_processor_module_serialize_unittest_SOURCES = \
+	src/processor/module_serialize_unittest.cc
+src_processor_module_serialize_unittest_LDADD = \
+	src/processor/basic_code_modules.lo \
+	src/processor/basic_source_line_resolver.lo \
+	src/processor/call_stack.lo \
+	src/processor/logging.lo \
+	src/processor/pathname_stripper.lo
+
 src_processor_stackwalker_selftest_SOURCES = \
 	src/processor/stackwalker_selftest.cc
 src_processor_stackwalker_selftest_LDADD = \
@@ -218,6 +231,7 @@ src_processor_minidump_stackwalk_LDADD = \
 	src/processor/basic_code_modules.lo \
 	src/processor/basic_source_line_resolver.lo \
 	src/processor/call_stack.lo \
+	src/processor/disk_module_cache.lo \
 	src/processor/logging.lo \
 	src/processor/minidump.lo \
 	src/processor/minidump_processor.lo \

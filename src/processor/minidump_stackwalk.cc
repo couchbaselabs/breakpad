@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include "google_breakpad/processor/basic_source_line_resolver.h"
 #include "google_breakpad/processor/call_stack.h"
@@ -45,6 +46,7 @@
 #include "google_breakpad/processor/minidump_processor.h"
 #include "google_breakpad/processor/process_state.h"
 #include "google_breakpad/processor/stack_frame_cpu.h"
+#include "processor/disk_module_cache.h"
 #include "processor/logging.h"
 #include "processor/pathname_stripper.h"
 #include "processor/scoped_ptr.h"
@@ -55,6 +57,7 @@ namespace {
 using std::string;
 using std::vector;
 using google_breakpad::BasicSourceLineResolver;
+using google_breakpad::DiskModuleCache;
 using google_breakpad::CallStack;
 using google_breakpad::CodeModule;
 using google_breakpad::CodeModules;
@@ -433,6 +436,7 @@ static void PrintProcessStateMachineReadable(const ProcessState& process_state)
 // is printed to stdout.
 static bool PrintMinidumpProcess(const string &minidump_file,
                                  const vector<string> &symbol_paths,
+                                 const string &symbol_cache_path,
                                  bool machine_readable) {
   scoped_ptr<SimpleSymbolSupplier> symbol_supplier;
   if (!symbol_paths.empty()) {
@@ -440,7 +444,11 @@ static bool PrintMinidumpProcess(const string &minidump_file,
     symbol_supplier.reset(new SimpleSymbolSupplier(symbol_paths));
   }
 
-  BasicSourceLineResolver resolver;
+  scoped_ptr<DiskModuleCache> disk_cache;
+  if (!symbol_cache_path.empty()) {
+    disk_cache.reset(new DiskModuleCache(symbol_cache_path));
+  }
+  BasicSourceLineResolver resolver(disk_cache.get());
   MinidumpProcessor minidump_processor(symbol_supplier.get(), &resolver);
 
   // Process the minidump.
@@ -463,8 +471,9 @@ static bool PrintMinidumpProcess(const string &minidump_file,
 }  // namespace
 
 static void usage(const char *program_name) {
-  fprintf(stderr, "usage: %s [-m] <minidump-file> [symbol-path ...]\n"
-          "    -m : Output in machine-readable format\n",
+  fprintf(stderr, "usage: %s [-m] [-c path] <minidump-file> [symbol-path ...]\n"
+          "    -m        : Output in machine-readable format\n",
+          "    -c <path> : Cache symbol files to this path\n",
           program_name);
 }
 
@@ -477,32 +486,48 @@ int main(int argc, char **argv) {
   }
 
   const char *minidump_file;
-  bool machine_readable;
+  bool machine_readable = false;
   int symbol_path_arg;
+  string symbol_cache_path;
 
-  if (strcmp(argv[1], "-m") == 0) {
-    if (argc < 3) {
+  // handle switches
+  int option;
+  opterr = 0;
+  while ((option = getopt(argc, argv, "mc:")) != -1) {
+    switch (option) {
+    case 'm':
+      machine_readable = true;
+      break;
+    case 'c':
+      symbol_cache_path = optarg;
+      break;
+    case '?':
+      if (optopt == 'c')
+        fprintf(stderr, "Error: -c requires an argument.\n");
+      else
+        fprintf(stderr, "Error: unknown option '-%c'.\n", optopt);
       usage(argv[0]);
       return 1;
     }
-
-    machine_readable = true;
-    minidump_file = argv[2];
-    symbol_path_arg = 3;
-  } else {
-    machine_readable = false;
-    minidump_file = argv[1];
-    symbol_path_arg = 2;
   }
+
+  if (optind >= argc) {
+    usage(argv[0]);
+    return 1;
+  }
+
+  minidump_file = argv[optind];
+  optind++;
 
   // extra arguments are symbol paths
   std::vector<std::string> symbol_paths;
-  if (argc > symbol_path_arg) {
-    for (int argi = symbol_path_arg; argi < argc; ++argi)
+  if (argc > optind) {
+    for (int argi = optind; argi < argc; ++argi)
       symbol_paths.push_back(argv[argi]);
   }
 
   return PrintMinidumpProcess(minidump_file,
                               symbol_paths,
+                              symbol_cache_path,
                               machine_readable) ? 0 : 1;
 }

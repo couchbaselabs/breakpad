@@ -102,6 +102,8 @@ class ContainedRangeMap {
   // empty state when called on the root node.
   void Clear();
 
+  bool Equals(const ContainedRangeMap<AddressType, EntryType> &other) const;
+
  private:
   // AddressToRangeMap stores pointers.  This makes reparenting simpler in
   // StoreRange, because it doesn't need to copy entire objects.
@@ -136,6 +138,8 @@ class ContainedRangeMap {
   // address.  This is a pointer to avoid allocating map structures for
   // leaf nodes, where they are not needed.
   AddressToRangeMap *map_;
+
+  friend class ModuleSerializer;
 };
 
 

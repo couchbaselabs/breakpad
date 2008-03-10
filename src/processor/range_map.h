@@ -92,6 +92,8 @@ class RangeMap {
   // initially created.
   void Clear();
 
+  bool Equals(const RangeMap<AddressType, EntryType> &other) const;
+
  private:
   class Range {
    public:
@@ -101,6 +103,10 @@ class RangeMap {
     AddressType base() const { return base_; }
     EntryType entry() const { return entry_; }
 
+    //XXX: I really wanted this to be Equals, but
+    // I can't seem to get that to work properly.
+    bool operator==(const Range &other) const;
+
    private:
     // The base address of the range.  The high address does not need to
     // be stored, because RangeMap uses it as the key to the map.
@@ -108,6 +114,8 @@ class RangeMap {
 
     // The entry corresponding to a range.
     const EntryType entry_;
+
+    friend class ModuleSerializer;
   };
 
   // Convenience types.
@@ -117,6 +125,11 @@ class RangeMap {
 
   // Maps the high address of each range to a EntryType.
   AddressToRangeMap map_;
+  
+  friend class ModuleSerializer;
+
+  //template<typename T>
+  //friend bool Equals(const T &a, const T &b);
 };
 
 

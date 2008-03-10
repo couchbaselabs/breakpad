@@ -39,6 +39,7 @@
 #include <cassert>
 
 #include "processor/address_map.h"
+#include "processor/equals.h"
 #include "processor/logging.h"
 
 namespace google_breakpad {
@@ -85,6 +86,12 @@ bool AddressMap<AddressType, EntryType>::Retrieve(
 template<typename AddressType, typename EntryType>
 void AddressMap<AddressType, EntryType>::Clear() {
   map_.clear();
+}
+
+template<typename AddressType, typename EntryType>
+bool AddressMap<AddressType, EntryType>::Equals(
+  const AddressMap<AddressType, EntryType> &other) const {
+  return google_breakpad::Equals(map_, other.map_);
 }
 
 }  // namespace google_breakpad

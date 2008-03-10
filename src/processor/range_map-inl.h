@@ -40,6 +40,7 @@
 #include <cassert>
 
 #include "processor/range_map.h"
+#include "processor/equals.h"
 #include "processor/logging.h"
 
 
@@ -203,6 +204,17 @@ void RangeMap<AddressType, EntryType>::Clear() {
   map_.clear();
 }
 
+template<typename AddressType, typename EntryType>
+bool RangeMap<AddressType, EntryType>::Equals(
+       const RangeMap<AddressType, EntryType> &other) const {
+  return google_breakpad::Equals(map_, other.map_);
+}
+
+template<typename AddressType, typename EntryType>
+bool RangeMap<AddressType, EntryType>::Range::operator==(const Range &other) const {
+  return google_breakpad::Equals(base_, other.base_) &&
+    google_breakpad::Equals(entry_, other.entry_);
+}
 
 }  // namespace google_breakpad
 
