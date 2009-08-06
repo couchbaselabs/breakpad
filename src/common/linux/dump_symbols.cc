@@ -28,21 +28,23 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <a.out.h>
-#include <cstdarg>
-#include <cstdlib>
-#include <cstdio>
+#include <assert.h>
 #include <cxxabi.h>
 #include <elf.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <link.h>
-#include <sys/mman.h>
 #include <stab.h>
+#include <string.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <algorithm>
 
+#include <algorithm>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <functional>
 #include <list>
@@ -53,7 +55,6 @@
 #include "common/linux/dump_symbols.h"
 #include "common/linux/file_id.h"
 #include "common/linux/guid_creator.h"
-#include "processor/scoped_ptr.h"
 
 // This namespace contains helper functions.
 namespace {
@@ -220,7 +221,7 @@ static const ElfW(Shdr) *FindSectionByName(const char *name,
 
   for (int i = 0; i < nsection; ++i) {
     const char *section_name =
-      (char*)(strtab->sh_offset + sections[i].sh_name);
+      reinterpret_cast<char*>(strtab->sh_offset + sections[i].sh_name);
     if (!strncmp(name, section_name, name_len))
       return sections + i;
   }
@@ -411,8 +412,8 @@ static bool ComputeSizeAndRVA(ElfW(Addr) loading_addr,
         func_info.size = next_addr - func_info.addr;
       } else {
         if (no_next_addr_count > 1) {
-          fprintf(stderr, "Got more than one funtion without the \
-                  following symbol. Igore this function.\n");
+          fprintf(stderr, "Got more than one function without the following ");
+          fprintf(stderr, "symbol. Ignore this function.\n");
           fprintf(stderr, "The dumped symbol may not correct.\n");
           assert(!"This should not happen!\n");
           func_info.size = 0;
@@ -465,7 +466,7 @@ static bool LoadSymbols(const ElfW(Shdr) *stab_section,
     reinterpret_cast<struct nlist *>(stab_section->sh_offset);
   int nstab = stab_section->sh_size / sizeof(struct nlist);
   // First pass, load all symbols from the object file.
-  for (int i = 0; i < nstab; ) {
+  for (int i = 0; i < nstab;) {
     int step = 1;
     struct nlist *cur_list = lists + i;
     if (cur_list->n_type == N_SO) {
@@ -526,7 +527,7 @@ static bool WriteModuleInfo(FILE *file,
   else
     return false;
 
-  unsigned char identifier[16];
+  uint8_t identifier[google_breakpad::kMDGUIDSize];
   google_breakpad::FileID file_id(obj_file.c_str());
   if (file_id.ElfFileIdentifier(identifier)) {
     char identifier_str[40];
@@ -616,7 +617,7 @@ static bool WriteSourceFileInfo(FILE *file, struct SymbolInfo &symbols) {
 }
 
 static bool WriteOneFunction(FILE *file,
-                             const struct FuncInfo &func_info){
+                             const struct FuncInfo &func_info) {
   std::string func_name = Demangle(func_info.name.c_str());
 
   if (func_info.size <= 0)
