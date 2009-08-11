@@ -52,7 +52,7 @@ FileID::FileID(const char* path) {
 }
 
 bool FileID::ElfFileIdentifier(uint8_t identifier[kMDGUIDSize]) {
-  const size_t mapped_len = 4096;  // Page size (matches WriteMappings())
+  const ssize_t mapped_len = 4096;  // Page size (matches WriteMappings())
   int fd = open(path_, O_RDONLY);
   if (fd < 0)
     return false;
@@ -95,7 +95,7 @@ void FileID::ConvertIdentifierToString(const uint8_t identifier[kMDGUIDSize],
   *data3 = htons(*data3);
 
   int buffer_idx = 0;
-  for (int idx = 0;
+  for (unsigned int idx = 0;
        (buffer_idx < buffer_length) && (idx < kMDGUIDSize);
        ++idx) {
     int hi = (identifier_swapped[idx] >> 4) & 0x0F;
