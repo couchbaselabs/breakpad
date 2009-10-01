@@ -30,9 +30,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
 
+#include <algorithm>
 #include <fstream>
 #include <ios>
+#include <vector>
 
 #include "processor/disk_module_cache.h"
 #include "processor/logging.h"
@@ -43,9 +47,42 @@ using std::ofstream;
 using std::istream;
 using std::ifstream;
 using std::ios;
+using std::vector;
 
 
 namespace google_breakpad {
+
+// tempofstream writes data to a temporary file in the same
+// directory as the file passed to the constructor.
+// when closed, it renames the temporary file to the given filename.
+class tempofstream : public ofstream
+{
+public:
+  tempofstream(const char * filename, ios_base::openmode mode = ios_base::out);
+  void close();
+
+private:
+  string tempname_;
+  string filename_;
+};
+
+tempofstream::tempofstream(const char * filename,
+			   ios_base::openmode mode) : tempname_(""),
+						      filename_(filename)
+{
+  string name_template_s = filename_ + "XXXXXX";
+  vector<char> name_template(name_template_s.length());
+  std::copy(name_template_s.begin(), name_template_s.end(),
+	    name_template.begin());
+  tempname_ = mktemp(&name_template[0]);
+  open(tempname_.c_str(), mode);
+}
+
+void tempofstream::close()
+{
+  ofstream::close();
+  rename(tempname_.c_str(), filename_.c_str());
+}
 
 DiskModuleCache::DiskModuleCache(string cache_directory) :
     cache_directory_(cache_directory)
@@ -88,8 +125,8 @@ bool DiskModuleCache::BeginSetModuleData(const string &symbol_file,
   if (!EnsurePathExists(cache_file.substr(0, cache_file.rfind('/'))))
     return false;
   
-  *data_stream = new ofstream(cache_file.c_str(),
-                              ios::out | ios::binary | ios::trunc);
+  *data_stream = new tempofstream(cache_file.c_str(),
+				  ios::out | ios::binary | ios::trunc);
   if (!**data_stream) {
     delete *data_stream;
     *data_stream = NULL;
@@ -101,7 +138,7 @@ bool DiskModuleCache::BeginSetModuleData(const string &symbol_file,
 bool DiskModuleCache::EndSetModuleData(const string &symbol_file,
                                        ostream **data_stream)
 {
-  ofstream *file_stream = dynamic_cast<ofstream*>(*data_stream);
+  tempofstream *file_stream = dynamic_cast<tempofstream*>(*data_stream);
   if (!file_stream)
     return false;
 
