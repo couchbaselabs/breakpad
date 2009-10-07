@@ -71,9 +71,10 @@ tempofstream::tempofstream(const char * filename,
 						      filename_(filename)
 {
   string name_template_s = filename_ + "XXXXXX";
-  vector<char> name_template(name_template_s.length());
+  vector<char> name_template(name_template_s.length() + 1);
   std::copy(name_template_s.begin(), name_template_s.end(),
 	    name_template.begin());
+  name_template[name_template.size() - 1] = '\0';
   tempname_ = mktemp(&name_template[0]);
   open(tempname_.c_str(), mode);
 }
@@ -102,16 +103,17 @@ bool DiskModuleCache::GetModuleData(const string &symbol_file,
   if (cache_file.empty())
     return false;
 
-  BPLOG(INFO) << "Loading cached copy of symbol file " << symbol_file
-              << " from " << cache_file;
-
   *data_stream = new ifstream(cache_file.c_str(),
                               ios::in | ios::binary);
   if (!**data_stream) {
     delete *data_stream;
     *data_stream = NULL;
+
+    BPLOG(INFO) << "Symbol file " << symbol_file << " not cached";
     return false;
   }
+  BPLOG(INFO) << "Loading cached copy of symbol file " << symbol_file
+              << " from " << cache_file;
   return true;
 }
 
@@ -122,6 +124,7 @@ bool DiskModuleCache::BeginSetModuleData(const string &symbol_file,
     return false;
 
   string cache_file = MapToCacheEntry(symbol_file);
+  BPLOG(INFO) << "Writing cache entry " << cache_file;
   if (!EnsurePathExists(cache_file.substr(0, cache_file.rfind('/'))))
     return false;
   
@@ -130,6 +133,8 @@ bool DiskModuleCache::BeginSetModuleData(const string &symbol_file,
   if (!**data_stream) {
     delete *data_stream;
     *data_stream = NULL;
+
+    BPLOG(INFO) << "Failed writing cache entry " << cache_file;
     return false;
   }
   return true;
@@ -139,9 +144,12 @@ bool DiskModuleCache::EndSetModuleData(const string &symbol_file,
                                        ostream **data_stream)
 {
   tempofstream *file_stream = dynamic_cast<tempofstream*>(*data_stream);
-  if (!file_stream)
+  if (!file_stream) {
+    BPLOG(INFO) << "Error writing cache entry for " << symbol_file;
     return false;
-
+  }
+  
+  BPLOG(INFO) << "Finished writing cache entry for " << symbol_file;
   file_stream->close();
   return true;
 }
