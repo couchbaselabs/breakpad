@@ -99,6 +99,16 @@ class CULineInfoHandler: public LineInfoHandler {
   virtual void AddLine(uint64 address, uint32 file_num, uint32 line_num,
                        uint32 column_num);
 
+  // Called at the end of a sequence of lines.  ADDRESS is the address
+  // of the first byte after the final machine instruction of the
+  // sequence.
+  // 
+  // Note that this is *not* necessarily the end of the line data for
+  // the compilation unit: a single compilation unit's line program
+  // may contain several "end of sequence" markers, to describe (for
+  // example) several discontiguous regions of code.
+  virtual void EndSequence(uint64 address);
+
 
  private:
   LineMap* linemap_;

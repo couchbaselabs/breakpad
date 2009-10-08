@@ -815,16 +815,18 @@ void LineInfo::ReadLines() {
     lengthstart += 4;
 
   const char* lineptr = after_header_;
+  lsm.Reset(header_.default_is_stmt);
   while (lineptr < lengthstart + header_.total_length) {
-    lsm.Reset(header_.default_is_stmt);
-    while (!lsm.end_sequence) {
-      size_t oplength;
-      bool add_line = ProcessOneOpcode(reader_, handler_, header_,
-                                       lineptr, &lsm, &oplength, (uintptr_t)-1, NULL);
-      if (add_line)
-        handler_->AddLine(lsm.address, lsm.file_num, lsm.line_num,
-                          lsm.column_num);
-      lineptr += oplength;
+    size_t oplength;
+    bool add_line = ProcessOneOpcode(reader_, handler_, header_,
+                                     lineptr, &lsm, &oplength, (uintptr_t)-1, NULL);
+    lineptr += oplength;
+    if (lsm.end_sequence) {
+      handler_->EndSequence(lsm.address);
+      lsm.Reset(header_.default_is_stmt);      
+    } else if (add_line) {
+      handler_->AddLine(lsm.address, lsm.file_num, lsm.line_num,
+                        lsm.column_num);
     }
   }
 

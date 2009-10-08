@@ -19,10 +19,12 @@ all:$(BIN)
 TOP = ../../../..
 VPATH  = $(TOP)/src/common/linux
 VPATH += $(TOP)/src/common
+VPATH += $(TOP)/src/common/dwarf
 
 DUMP_OBJ =					\
 	dump_symbols.o				\
 	dump_syms.o				\
+	dwarf2diehandler.o			\
 	file_id.o				\
 	guid_creator.o				\
 	md5.o					\
@@ -45,6 +47,9 @@ file_id.o: file_id.cc
 
 # From src/common:
 md5.o: md5.c
+
+# From src/common/dwarf:
+dwarf2diehandler.o: dwarf2diehandler.cc
 
 clean:
 	rm -f $(BIN) $(DUMP_OBJ)
