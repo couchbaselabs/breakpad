@@ -224,8 +224,11 @@ class CompilationUnit {
 
   // Begin reading a Dwarf2 compilation unit, and calling the
   // callbacks in the Dwarf2Handler
-  // Return the offset of the end of the compilation unit - the passed
-  // in offset.
+
+  // Return the full length of the compilation unit, including
+  // headers.  This plus the starting offset passed to the constructor
+  // is the offset of the end of the compilation unit --- the start of
+  // the next compilation unit, if there is one.
   uint64 Start();
 
  private:
