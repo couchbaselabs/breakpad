@@ -16,29 +16,35 @@ BIN=dump_syms
 
 all:$(BIN)
 
-DUMP_OBJ=dump_symbols.o guid_creator.o dump_syms.o file_id.o md5.o \
-         stabs_reader.o module.o
+TOP = ../../../..
+VPATH  = $(TOP)/src/common/linux
+VPATH += $(TOP)/src/common
+
+DUMP_OBJ =					\
+	dump_symbols.o				\
+	dump_syms.o				\
+	file_id.o				\
+	guid_creator.o				\
+	md5.o					\
+	module.o				\
+	stabs_reader.o				\
+	$(NULL)
 
 dump_syms:$(DUMP_OBJ)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ $^
 
-dump_symbols.o:../../../common/linux/dump_symbols.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $^
+# From this directory:
+dump_syms.o: dump_syms.cc
 
-stabs_reader.o:../../../common/linux/stabs_reader.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $^
+# From src/common/linux:
+dump_symbols.o: dump_symbols.cc
+stabs_reader.o: stabs_reader.cc
+module.o: module.cc
+guid_creator.o: guid_creator.cc
+file_id.o: file_id.cc
 
-module.o:../../../common/linux/module.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $^
-
-guid_creator.o:../../../common/linux/guid_creator.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $^
-
-file_id.o:../../../common/linux/file_id.cc
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $^
-
-md5.o:../../../common/md5.c
-	$(CC) $(CPPFLAGS) $(CXXFLAGS) -c $^
+# From src/common:
+md5.o: md5.c
 
 clean:
 	rm -f $(BIN) $(DUMP_OBJ)
