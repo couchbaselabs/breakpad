@@ -86,6 +86,9 @@ includeclh_HEADERS = $(top_srcdir)/src/client/linux/handler/*.h
 includeclmdir = $(includedir)/$(PACKAGE)/client/linux/minidump_writer
 includeclm_HEADERS = $(top_srcdir)/src/client/linux/minidump_writer/*.h
 
+includeclcmdir = $(includedir)/$(PACKAGE)/client/linux/dump_writer_common
+includeclcm_HEADERS = $(top_srcdir)/src/client/linux/dump_writer_common/*.h
+
 includeclcdir = $(includedir)/$(PACKAGE)/client/linux/crash_generation
 includeclc_HEADERS = $(top_srcdir)/src/client/linux/crash_generation/*.h
 
