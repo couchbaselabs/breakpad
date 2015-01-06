@@ -93,13 +93,13 @@ typedef MDTypeHelper<sizeof(ElfW(Addr))>::MDRawLinkMap MDRawLinkMap;
 static const MDRVA kInvalidMDRVA = static_cast<MDRVA>(-1);
 static bool verbose;
 static std::string g_custom_so_basedir;
-static bool g_mangle_sonames = true;
+static bool g_mangle_sonames = false;
 
 static int usage(const char* argv0) {
   fprintf(stderr, "Usage: %s [options] <minidump file>\n", argv0);
   fprintf(stderr,
 "  --mangle-sonames=<0|1>: Should module names be manged by adding GUID &\n"
-"                          stripping base dir. (default: 1)\n");
+"                          stripping base dir. (default: 0)\n");
   return 1;
 }
 
