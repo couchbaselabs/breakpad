@@ -325,7 +325,9 @@
           # This is required for ATL to use XP-safe versions of its functions.
           '_USING_V110_SDK71_',
         ],
-        'msvs_disabled_warnings': [4800],
+        # Also added 4267 ("conversion from 'size_t' to 'uint32_t', possible loss of data")
+        # which occurs when building for x64.
+        'msvs_disabled_warnings': [4267, 4800],
         'msvs_settings': {
           'VCCLCompilerTool': {
             'WarnAsError': 'true',
